@@ -52,7 +52,9 @@ pipeline {
                 echo 'Running Spring Petclinic container...'
                 sh '''
                   docker rm -f petclinic || true
-                  docker run -d --name petclinic --network host ${DOCKER_IMAGE}
+                  # Map port 8081 on host -> 8080 inside container
+                  docker run -d --name petclinic -p 8081:8080 spring-petclinic:latest
+                  docker ps
                 '''
             }
         }

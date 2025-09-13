@@ -1,6 +1,9 @@
 pipeline {
     agent any
-
+    tools {
+        maven 'M3'
+    }
+    
     environment {
         // Make sure Jenkins can find docker binary
         PATH = "/usr/bin:${env.PATH}"

@@ -1,40 +1,66 @@
 pipeline {
-    agent {
-        docker {
-            image 'maven:3.9-eclipse-temurin-17'
-            args '-v /root/.m2:/root/.m2'
-        }
+    agent any
+
+    environment {
+        // Make sure Jenkins can find docker binary
+        PATH = "/usr/bin:${env.PATH}"
+        DOCKER_IMAGE = "spring-petclinic:latest"
+        CONTAINER_NAME = "petclinic"
     }
+
     stages {
         stage('Checkout') {
             steps {
-                git branch: 'main', url: 'https://github.com/rklorD456/spring-petclinic.git'
+                checkout scm
             }
         }
+
         stage('Build with Maven') {
             steps {
-                sh 'mvn clean package -DskipTests || (echo "Maven build failed" && exit 1)'
+                echo "Building the project with Maven..."
+                sh 'mvn clean package -DskipTests'
             }
         }
+
+        stage('Verify Docker') {
+            steps {
+                echo "Checking Docker installation inside Jenkins..."
+                sh 'which docker'
+                sh 'docker --version'
+                sh 'docker info'
+            }
+        }
+
         stage('Build Docker Image') {
             steps {
-                script {
-                    docker.build("spring-petclinic:latest")
-                }
+                echo "Building Docker image ${DOCKER_IMAGE}..."
+                sh "docker build -t ${DOCKER_IMAGE} ."
             }
         }
+
         stage('Run Container') {
             steps {
-                sh 'docker run -d --rm --name petclinic -p 8081:8080 spring-petclinic:latest || true'
+                echo "Stopping and removing old container if exists..."
+                sh """
+                    docker stop ${CONTAINER_NAME} || true
+                    docker rm ${CONTAINER_NAME} || true
+                """
+                echo "Running new container..."
+                sh "docker run -d --name ${CONTAINER_NAME} -p 8080:8080 ${DOCKER_IMAGE}"
             }
         }
     }
+
     post {
         always {
-            sh 'docker ps -a || true'
+            echo "Pipeline finished (success or failure)."
         }
-        cleanup {
-            sh 'docker stop petclinic || true'
+        success {
+            echo "Application deployed successfully on http://localhost:8080"
+            sh "docker ps | grep ${CONTAINER_NAME} || true"
+        }
+        failure {
+            echo "Pipeline failed. Check logs above for details."
         }
     }
 }

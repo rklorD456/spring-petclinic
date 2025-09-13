@@ -23,7 +23,21 @@ pipeline {
                 sh 'mvn clean package -DskipTests'
             }
         }
-        
+        stage('Wait for SonarQube') {
+            steps {
+                echo "Waiting for SonarQube to be ready..."
+                sh '''
+                  for i in {1..30}; do
+                    if curl -s http://sonarqube:9000 > /dev/null; then
+                      echo "SonarQube is ready!"
+                      break
+                    fi
+                    echo "SonarQube not ready yet... retrying in 5s"
+                    sleep 5
+                  done
+                '''
+            }
+        }
         stage('SonarQube Analysis') {
             steps {
                 withSonarQubeEnv('SonarQubeServer') {

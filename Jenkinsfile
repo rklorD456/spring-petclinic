@@ -40,7 +40,7 @@ pipeline {
             }
         }
 
-        stage('Start Database (Optional)') {
+        stage('Start Database ') {
             steps {
                 echo 'Starting database using docker compose...'
                 sh 'docker compose up -d mysql'

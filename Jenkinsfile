@@ -3,7 +3,7 @@ pipeline {
 
     environment {
         DOCKER_IMAGE = "spring-petclinic:latest"
-        SONAR_HOST_URL = "http://sonarqube:9000"
+        
     }
 
     tools {
@@ -23,18 +23,16 @@ pipeline {
                 sh 'mvn clean package -DskipTests'
             }
         }
+        
         stage('SonarQube Analysis') {
             steps {
-                withSonarQubeEnv('SonarQube') {
-                    sh """
-                      mvn sonar:sonar \
-                        -Dsonar.projectKey=spring-petclinic \
-                        -Dsonar.host.url=${SONAR_HOST_URL} \
-                        -Dsonar.login=${SONAR_TOKEN}
-                    """
+                withSonarQubeEnv('SonarQubeServer') {
+                    sh 'mvn sonar:sonar -Dsonar.projectKey=spring-petclinic'
                 }
             }
         }
+
+        
         stage('Verify Docker') {
             steps {
                 echo 'Checking Docker availability...'

@@ -13,7 +13,7 @@ pipeline {
         }
         stage('Build with Maven') {
             steps {
-                sh 'mvn clean package -DskipTests'
+                sh 'mvn clean package -DskipTests || (echo "Maven build failed" && exit 1)'
             }
         }
         stage('Build Docker Image') {
@@ -25,13 +25,13 @@ pipeline {
         }
         stage('Run Container') {
             steps {
-                sh 'docker run -d --rm --name petclinic -p 8081:8080 spring-petclinic:latest'
+                sh 'docker run -d --rm --name petclinic -p 8081:8080 spring-petclinic:latest || true'
             }
         }
     }
     post {
         always {
-            sh 'docker ps -a'
+            sh 'docker ps -a || true'
         }
         cleanup {
             sh 'docker stop petclinic || true'

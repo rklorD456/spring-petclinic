@@ -1,0 +1,50 @@
+name: CI - Build & Run Spring Petclinic
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Checkout source code
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 2. Setup Java (for Maven build)
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      # 3. Cache Maven dependencies (speed up builds)
+      - name: Cache Maven packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2
+          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
+          restore-keys: |
+            ${{ runner.os }}-maven-
+
+      # 4. Build project with Maven
+      - name: Build with Maven
+        run: mvn clean package -DskipTests
+
+      # 5. Build Docker image
+      - name: Build Docker Image
+        run: |
+          cp target/spring-petclinic-*.jar .
+          docker build -t spring-petclinic .
+
+      # 6. Run container for testing
+      - name: Run Spring Petclinic container
+        run: |
+          docker run -d -p 8080:8080 --name petclinic spring-petclinic
+          echo "Waiting for app to start..."
+          sleep 20
+          curl -f http://localhost:8080 || (docker logs petclinic && exit 1)

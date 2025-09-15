@@ -66,7 +66,7 @@ jobs:
           NGROK_AUTHTOKEN: ${{ secrets.NGROK_AUTHTOKEN }}
         run: |
           ngrok config add-authtoken $NGROK_AUTHTOKEN
-          nohup ngrok http 8080 > /dev/null 2>&1 &
+          nohup ngrok http 8088 > /dev/null 2>&1 &
           echo "Waiting for ngrok to start..."
           sleep 5
           curl -s http://127.0.0.1:4040/api/tunnels | jq -r '.tunnels[0].public_url'

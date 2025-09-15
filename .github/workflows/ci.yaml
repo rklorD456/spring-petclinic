@@ -69,8 +69,10 @@ jobs:
           nohup ngrok http 8088 > /dev/null 2>&1 &
           echo "Waiting for ngrok to start..."
           sleep 5
+          echo "ngrok tunnel started at:"
           curl -s http://127.0.0.1:4040/api/tunnels | jq -r '.tunnels[0].public_url'
-
+          echo "keeping the tunnel alive for 5 minutes..."
+          sleep 300
       # 10 Show logs if needed
       - name: Show Docker Logs
         if: failure()

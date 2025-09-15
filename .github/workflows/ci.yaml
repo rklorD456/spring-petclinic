@@ -44,7 +44,7 @@ jobs:
       # 6. Run container for testing
       - name: Run Spring Petclinic container
         run: |
-          docker run -d -p 8080:8080 --name petclinic spring-petclinic
+          docker run -d -p 8088:8080 --name petclinic spring-petclinic
           echo "Waiting for app to start..."
           sleep 20
-          curl -f http://localhost:8080 || (docker logs petclinic && exit 1)
+          curl -f http://localhost:8088 || (docker logs petclinic && exit 1)

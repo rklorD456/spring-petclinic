@@ -1,4 +1,4 @@
-name: CI - Spring Petclinic with Ngrok & Nexus
+name: CI - Spring Petclinic with Ngrok
 
 on:
   push:
@@ -11,15 +11,18 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # 1. Checkout code
       - name: Checkout Repository
         uses: actions/checkout@v4
 
+      # 2. Set up Java
       - name: Set up JDK 21
         uses: actions/setup-java@v4
         with:
           java-version: '21'
           distribution: 'temurin'
 
+      # 3. Cache Maven dependencies
       - name: Cache Maven packages
         uses: actions/cache@v4
         with:
@@ -28,28 +31,28 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-m2
 
+      # 4. Build with Maven
       - name: Build with Maven
         run: mvn clean package -DskipTests
 
-      # Install ngrok
+      # 5. Install ngrok & jq
       - name: Install ngrok
         run: |
           curl -s https://ngrok-agent.s3.amazonaws.com/ngrok.asc | sudo tee /etc/apt/trusted.gpg.d/ngrok.asc >/dev/null
           echo "deb https://ngrok-agent.s3.amazonaws.com buster main" | sudo tee /etc/apt/sources.list.d/ngrok.list
           sudo apt update && sudo apt install -y ngrok jq
 
-          
-      # Set up Docker Buildx
+      # 6. Set up Docker Buildx
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      # Build Docker image
+      # 7. Build Docker image
       - name: Build Docker Image
         run: |
           cp target/spring-petclinic-*.jar app.jar
           docker build -t spring-petclinic .
 
-      # Run the container locally
+      # 8. Run the container locally
       - name: Run Spring Petclinic Container
         run: |
           docker run -d -p 8080:8080 --name petclinic spring-petclinic
@@ -57,7 +60,7 @@ jobs:
           sleep 20
           docker ps
 
-      # Start ngrok tunnel for Spring Petclinic (8080)
+      # 9. Start ngrok tunnel for Spring Petclinic (8080)
       - name: Start ngrok tunnel for App
         env:
           NGROK_AUTHTOKEN: ${{ secrets.NGROK_AUTHTOKEN }}
@@ -69,17 +72,14 @@ jobs:
           NGROK_URL=$(curl -s http://127.0.0.1:4040/api/tunnels | jq -r '.tunnels[0].public_url')
           echo "🔗 App is publicly accessible at: $NGROK_URL"
           echo "APP_URL=$NGROK_URL" >> $GITHUB_ENV
-      
 
-      # Keep ngrok alive for 1 hour (3600 seconds)
+      # 10. Keep ngrok alive for 3 minutes (adjust as needed)
       - name: Keep ngrok alive
         run: |
-          echo "Keeping ngrok alive for 1 hour..."
+          echo "Keeping ngrok alive for 3 minutes..."
           sleep 180
 
-
-      # Show logs if needed
+      # 11. Show container logs if job fails
       - name: Show Docker Logs
         if: failure()
         run: docker logs petclinic
-        

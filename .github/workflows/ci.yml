@@ -14,6 +14,8 @@ jobs:
       # 1. Checkout code
       - name: Checkout Repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       # 2. Set up Java
       - name: Set up JDK 21
@@ -23,6 +25,13 @@ jobs:
           distribution: 'temurin'
 
       # 3. Cache Maven dependencies
+      - name: Cache SonarQube packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.sonar/cache
+          key: ${{ runner.os }}-sonar
+          restore-keys: ${{ runner.os }}-sonar
+
       - name: Cache Maven packages
         uses: actions/cache@v4
         with:
@@ -35,6 +44,17 @@ jobs:
       - name: Build with Maven
         run: mvn clean package -DskipTests
 
+      # 5. Build and run SonarQube analysis
+      - name: Build and Analyze with SonarQube
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Needed for PR info
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+        run: |
+          mvn -B clean verify \
+            org.sonarsource.scanner.maven:sonar-maven-plugin:sonar \
+            -Dsonar.projectKey=spring-petclinic
+            
       # 5. Install ngrok & jq
       - name: Install ngrok
         run: |

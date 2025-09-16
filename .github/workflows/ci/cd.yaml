@@ -61,6 +61,15 @@ jobs:
           cp target/spring-petclinic-*.jar app.jar
           docker build -t spring-petclinic .
 
+
+      # Configure Docker to allow HTTP for ngrok URL
+      - name: Configure Docker for HTTP Nexus
+        run: |
+          sudo mkdir -p /etc/docker
+          echo '{
+            "insecure-registries": ["'$NGROK_URL'"]
+          }' | sudo tee /etc/docker/daemon.json
+          sudo systemctl restart docker
       # Push image to Nexus via ngrok
       - name: Push Image to Nexus
         env:
@@ -84,4 +93,3 @@ jobs:
         if: failure()
         run: docker logs petclinic
 
-        

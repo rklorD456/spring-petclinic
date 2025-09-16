@@ -86,7 +86,7 @@ jobs:
           status: ${{ job.status }} # SUCCESS or FAILURE
           fields: repo,message,commit,author,job,took
         env:
-          SLACK_WEBHOOK_URL: https://hooks.slack.com/services/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
+          SLACK_WEBHOOK_URL: https://hooks.slack.com/services/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
 
           
       # 11. Show container logs if job fails

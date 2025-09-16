@@ -38,19 +38,7 @@ jobs:
           echo "deb https://ngrok-agent.s3.amazonaws.com buster main" | sudo tee /etc/apt/sources.list.d/ngrok.list
           sudo apt update && sudo apt install -y ngrok jq
 
-      # Start ngrok tunnel for Nexus (8082)
-      - name: Start ngrok tunnel for Nexus
-        env:
-          NGROK_AUTHTOKEN: ${{ secrets.NGROK_AUTHTOKEN }}
-        run: |
-          ngrok config add-authtoken $NGROK_AUTHTOKEN
-          nohup ngrok http 8082 > ngrok.log 2>&1 &
-          echo "Waiting for ngrok to start..."
-          sleep 5
-          NGROK_URL=$(curl -s http://127.0.0.1:4040/api/tunnels | jq -r '.tunnels[0].public_url' | sed 's|https://||')
-          echo "🔗 Nexus is publicly accessible at: $NGROK_URL"
-          echo "NGROK_URL=$NGROK_URL" >> $GITHUB_ENV
-
+          
       # Set up Docker Buildx
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -61,17 +49,7 @@ jobs:
           cp target/spring-petclinic-*.jar app.jar
           docker build -t spring-petclinic .
 
-      # Push image to Nexus via ngrok
-      - name: Push Image to Nexus
-        env:
-          NEXUS_USER: ${{ secrets.NEXUS_USER }}
-          NEXUS_PASS: ${{ secrets.NEXUS_PASS }}
-        run: |
-          echo "${NEXUS_PASS}" | docker login -u "${NEXUS_USER}" $NGROK_URL --password-stdin
-          docker tag spring-petclinic $NGROK_URL/repository/docker-hosted/spring-petclinic:latest
-          docker push $NGROK_URL/repository/docker-hosted/spring-petclinic:latest
-
-      # Run the container locally (optional)
+      # Run the container locally
       - name: Run Spring Petclinic Container
         run: |
           docker run -d -p 8080:8080 --name petclinic spring-petclinic
@@ -79,9 +57,29 @@ jobs:
           sleep 20
           docker ps
 
+      # Start ngrok tunnel for Spring Petclinic (8080)
+      - name: Start ngrok tunnel for App
+        env:
+          NGROK_AUTHTOKEN: ${{ secrets.NGROK_AUTHTOKEN }}
+        run: |
+          ngrok config add-authtoken $NGROK_AUTHTOKEN
+          nohup ngrok http 8080 > ngrok.log 2>&1 &
+          echo "Waiting for ngrok to start..."
+          sleep 5
+          NGROK_URL=$(curl -s http://127.0.0.1:4040/api/tunnels | jq -r '.tunnels[0].public_url')
+          echo "🔗 App is publicly accessible at: $NGROK_URL"
+          echo "APP_URL=$NGROK_URL" >> $GITHUB_ENV
+      
+
+      # Keep ngrok alive for 1 hour (3600 seconds)
+      - name: Keep ngrok alive
+        run: |
+          echo "Keeping ngrok alive for 1 hour..."
+          sleep 180
+
+
       # Show logs if needed
       - name: Show Docker Logs
         if: failure()
         run: docker logs petclinic
-
         

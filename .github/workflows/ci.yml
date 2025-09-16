@@ -24,7 +24,7 @@ jobs:
           java-version: '21'
           distribution: 'temurin'
 
-      # 3. Cache Maven dependencies
+      # 3. Cache SonarQube packages
       - name: Cache SonarQube packages
         uses: actions/cache@v4
         with:
@@ -32,6 +32,7 @@ jobs:
           key: ${{ runner.os }}-sonar-5.2.0.4988
           restore-keys: ${{ runner.os }}-sonar-5.2.0.4988
 
+      # 4. Cache Maven packages
       - name: Cache Maven packages
         uses: actions/cache@v4
         with:
@@ -40,37 +41,54 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-m2
 
-      # 5. Build and run SonarQube analysis
+      # 5. Build and run SonarQube analysis (with retry logic)
       - name: Build and Analyze with SonarQube
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
         run: |
-          echo "🧹 Cleaning SonarQube cache to avoid hash mismatch issues..."
+          set -e
+          echo "🧹 Cleaning SonarQube cache..."
           rm -rf ~/.sonar/cache
-          mvn -B clean verify \
-            org.sonarsource.scanner.maven:sonar-maven-plugin:5.2.0.4988:sonar \
-            -Dsonar.projectKey=spring-petclinic
+          
+          MAX_RETRIES=3
+          COUNT=0
+          until [ $COUNT -ge $MAX_RETRIES ]
+          do
+            echo "🔄 Running SonarQube analysis (attempt $((COUNT+1))/$MAX_RETRIES)..."
+            mvn -B clean verify \
+              org.sonarsource.scanner.maven:sonar-maven-plugin:5.2.0.4988:sonar \
+              -Dsonar.projectKey=spring-petclinic && break
+            COUNT=$((COUNT+1))
+            echo "⚠️ SonarQube analysis failed. Retrying in 10s..."
+            rm -rf ~/.sonar/cache
+            sleep 10
+          done
 
-      # 5. Install ngrok & jq
+          if [ $COUNT -ge $MAX_RETRIES ]; then
+            echo "❌ SonarQube analysis failed after $MAX_RETRIES attempts."
+            exit 1
+          fi
+
+      # 6. Install ngrok & jq
       - name: Install ngrok
         run: |
           curl -s https://ngrok-agent.s3.amazonaws.com/ngrok.asc | sudo tee /etc/apt/trusted.gpg.d/ngrok.asc >/dev/null
           echo "deb https://ngrok-agent.s3.amazonaws.com buster main" | sudo tee /etc/apt/sources.list.d/ngrok.list
           sudo apt update && sudo apt install -y ngrok jq
 
-      # 6. Set up Docker Buildx
+      # 7. Set up Docker Buildx
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      # 7. Build Docker image
+      # 8. Build Docker image
       - name: Build Docker Image
         run: |
           cp target/spring-petclinic-*.jar app.jar
           docker build -t spring-petclinic .
 
-      # 8. Run the container locally
+      # 9. Run the container locally
       - name: Run Spring Petclinic Container
         run: |
           docker run -d -p 8080:8080 --name petclinic spring-petclinic
@@ -78,7 +96,7 @@ jobs:
           sleep 20
           docker ps
 
-      # 9. Start ngrok tunnel for Spring Petclinic (8080)
+      # 10. Start ngrok tunnel for Spring Petclinic (8080)
       - name: Start ngrok tunnel for App
         env:
           NGROK_AUTHTOKEN: ${{ secrets.NGROK_AUTHTOKEN }}
@@ -91,15 +109,13 @@ jobs:
           echo "🔗 App is publicly accessible at: $NGROK_URL"
           echo "APP_URL=$NGROK_URL" >> $GITHUB_ENV
 
-      # 10. Keep ngrok alive for 3 minutes (adjust as needed)
+      # 11. Keep ngrok alive for 3 minutes (adjust as needed)
       - name: Keep ngrok alive
         run: |
           echo "Keeping ngrok alive for 3 minutes..."
           sleep 180
 
-      # 11. Show container logs if job fails
+      # 12. Show container logs if job fails
       - name: Show Docker Logs
         if: failure()
         run: docker logs petclinic
-
-        

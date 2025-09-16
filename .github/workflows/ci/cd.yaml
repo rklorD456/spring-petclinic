@@ -1,4 +1,4 @@
-name: CI - Spring Petclinic with Ngrok
+name: CI - Spring Petclinic with Ngrok & Nexus
 
 on:
   push:
@@ -11,18 +11,15 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1 Checkout source code
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      # 2 Set up Java (Maven will use this)
       - name: Set up JDK 21
         uses: actions/setup-java@v4
         with:
           java-version: '21'
           distribution: 'temurin'
 
-      # 3 Cache Maven dependencies for faster builds
       - name: Cache Maven packages
         uses: actions/cache@v4
         with:
@@ -31,21 +28,50 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-m2
 
-      # 4 Build the project using Maven
       - name: Build with Maven
         run: mvn clean package -DskipTests
 
-      # 5 Set up Docker Buildx
+      # Install ngrok
+      - name: Install ngrok
+        run: |
+          curl -s https://ngrok-agent.s3.amazonaws.com/ngrok.asc | sudo tee /etc/apt/trusted.gpg.d/ngrok.asc >/dev/null
+          echo "deb https://ngrok-agent.s3.amazonaws.com buster main" | sudo tee /etc/apt/sources.list.d/ngrok.list
+          sudo apt update && sudo apt install -y ngrok jq
+
+      # Start ngrok tunnel for Nexus (8082)
+      - name: Start ngrok tunnel for Nexus
+        env:
+          NGROK_AUTHTOKEN: ${{ secrets.NGROK_AUTHTOKEN }}
+        run: |
+          ngrok config add-authtoken $NGROK_AUTHTOKEN
+          nohup ngrok http 8082 > ngrok.log 2>&1 &
+          echo "Waiting for ngrok to start..."
+          sleep 5
+          NGROK_URL=$(curl -s http://127.0.0.1:4040/api/tunnels | jq -r '.tunnels[0].public_url' | sed 's|https://||')
+          echo "🔗 Nexus is publicly accessible at: $NGROK_URL"
+          echo "NGROK_URL=$NGROK_URL" >> $GITHUB_ENV
+
+      # Set up Docker Buildx
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      # 6 Build Docker image
+      # Build Docker image
       - name: Build Docker Image
         run: |
           cp target/spring-petclinic-*.jar app.jar
           docker build -t spring-petclinic .
 
-      # 7 Run the container
+      # Push image to Nexus via ngrok
+      - name: Push Image to Nexus
+        env:
+          NEXUS_USER: ${{ secrets.NEXUS_USER }}
+          NEXUS_PASS: ${{ secrets.NEXUS_PASS }}
+        run: |
+          echo "${NEXUS_PASS}" | docker login -u "${NEXUS_USER}" $NGROK_URL --password-stdin
+          docker tag spring-petclinic $NGROK_URL/repository/docker-hosted/spring-petclinic:latest
+          docker push $NGROK_URL/repository/docker-hosted/spring-petclinic:latest
+
+      # Run the container locally (optional)
       - name: Run Spring Petclinic Container
         run: |
           docker run -d -p 8080:8080 --name petclinic spring-petclinic
@@ -53,27 +79,7 @@ jobs:
           sleep 20
           docker ps
 
-      # 8 Install ngrok
-      - name: Install ngrok
-        run: |
-          curl -s https://ngrok-agent.s3.amazonaws.com/ngrok.asc | sudo tee /etc/apt/trusted.gpg.d/ngrok.asc >/dev/null
-          echo "deb https://ngrok-agent.s3.amazonaws.com buster main" | sudo tee /etc/apt/sources.list.d/ngrok.list
-          sudo apt update && sudo apt install ngrok
-
-      # 9 Start ngrok tunnel
-      - name: Start ngrok tunnel
-        env:
-          NGROK_AUTHTOKEN: ${{ secrets.NGROK_AUTHTOKEN }}
-        run: |
-          ngrok config add-authtoken $NGROK_AUTHTOKEN
-          nohup ngrok http 8080 > /dev/null 2>&1 &
-          echo "Waiting for ngrok to start..."
-          sleep 5
-          echo "ngrok tunnel started at:"
-          curl -s http://127.0.0.1:4040/api/tunnels | jq -r '.tunnels[0].public_url'
-          echo "keeping the tunnel alive for 5 minutes..."
-          sleep 300
-      # 10 Show logs if needed
+      # Show logs if needed
       - name: Show Docker Logs
         if: failure()
         run: docker logs petclinic

@@ -81,17 +81,14 @@ jobs:
 
 
       - name: Send Slack Notification
-        if: always() # always run, even on failure
+        if: always() 
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
         run: |
-          STATUS="${{ job.status }}"
-          if [ "$STATUS" = "success" ]; then
-            MESSAGE="✅ Build Succeeded in $GITHUB_WORKFLOW!"
-          else
-            MESSAGE="❌ Build Failed in $GITHUB_WORKFLOW!"
-          fi
+          MESSAGE="🚀 Test message from GitHub Actions!"
           curl -X POST -H 'Content-type: application/json' \
             --data "{\"text\":\"$MESSAGE\"}" \
-            https://hooks.slack.com/services/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
+            "$SLACK_WEBHOOK_URL"
 
           
       # 11. Show container logs if job fails

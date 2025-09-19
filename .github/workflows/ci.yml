@@ -76,17 +76,22 @@ jobs:
       # 10. Keep ngrok alive for 3 minutes (adjust as needed)
       - name: Keep ngrok alive
         run: |
-          echo "Keeping ngrok alive for 3 minutes..."
-          sleep 180
-      # Slack notification step
+          echo "Keeping ngrok alive for 2 minutes..."
+          sleep 120
+
+
       - name: Send Slack Notification
-        if: always() # run even if build fails
-        uses: 8398a7/action-slack@v3
-        with:
-          status: ${{ job.status }} # SUCCESS or FAILURE
-          fields: repo,message,commit,author,job,took
-        env:
-          SLACK_WEBHOOK_URL: https://hooks.slack.com/services/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
+        if: always() # always run, even on failure
+        run: |
+          STATUS="${{ job.status }}"
+          if [ "$STATUS" = "success" ]; then
+            MESSAGE="✅ Build Succeeded in $GITHUB_WORKFLOW!"
+          else
+            MESSAGE="❌ Build Failed in $GITHUB_WORKFLOW!"
+          fi
+          curl -X POST -H 'Content-type: application/json' \
+            --data "{\"text\":\"$MESSAGE\"}" \
+            https://hooks.slack.com/services/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
 
           
       # 11. Show container logs if job fails

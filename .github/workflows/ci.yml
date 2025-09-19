@@ -87,13 +87,24 @@ jobs:
 
 
       - name: Send Slack Notification
-        if: always() 
+        if: always() # run even if the job fails
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          JOB_STATUS: ${{ job.status }}
+          WORKFLOW_NAME: ${{ github.workflow }}
+          BRANCH: ${{ github.ref_name }}
         run: |
-          MESSAGE="🚀 Test message from GitHub Actions!"
+          if [ "$JOB_STATUS" = "success" ]; then
+            MESSAGE="✅ $WORKFLOW_NAME succeeded on branch $BRANCH!"
+          else
+            MESSAGE="❌ $WORKFLOW_NAME failed on branch $BRANCH!"
+          fi
+
+          # Use printf to safely build JSON payload
+          PAYLOAD=$(printf '{"text":"%s"}' "$MESSAGE")
+
           curl -X POST -H 'Content-type: application/json' \
-            --data "{\"text\":\"$MESSAGE\"}" \
+            --data "$PAYLOAD" \
             "$SLACK_WEBHOOK_URL"
 
           
